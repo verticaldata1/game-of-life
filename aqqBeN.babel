@@ -1,0 +1,254 @@
+var Button = ReactBootstrap.Button;
+
+var nextGrid = [];
+var interval;    
+var helpText = "The Game of Life is a simulation following these rules:<br/>"
+                +"1. Any live cell with less than 2 neighbors dies.<br/>"
+                +"2. Any live cell with more than 3 neighbors dies.<br/>"
+                +"3. Any dead cell with exactly 3 neighbors becomes a live cell.<br/><br/>"
+                +"In this implementation, you can add new cells by clicking on the grid.<br/><br/>"
+                +"Learn more here: "
+                + "<a href='https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life' "
+                + "target='_blank'>Conway's Game of Life </a>"
+
+
+class Cell extends React.Component {
+  constructor(props) {
+    super(props);    
+    this.state = {
+      isAlive: props.isAlive
+    };
+  }
+  componentWillReceiveProps(newProps) {
+    this.setState({isAlive: newProps.isAlive});
+  }
+
+  render() {
+    if(this.state.isAlive) {
+      return(<div className="cell alive"></div>);
+    }
+    else {
+      return(<div className="cell dead"></div>);
+    }
+  }
+}
+
+
+class Board extends React.Component {
+  constructor(props) {
+    super(props);    
+    this.state = {
+      grid: [],
+      numRows: 35,
+      numCols: 35,
+      running: false,
+      generation: 0,
+      speed: 400,
+      showHelp: false
+    };
+  }
+  componentWillMount() {
+    var newGrid = [];
+    this.randomizeGrid(newGrid, 2);
+    this.setNewBoard(newGrid);
+  }
+  randomizeGrid(_grid, _aliveChance) {
+    for(var rr = 0; rr < this.state.numRows; rr++) {
+      var newRow = [];
+      for(var cc = 0; cc < this.state.numCols; cc++) {
+        var live = Math.floor(Math.random() * 10);  
+        var newCell = (live<_aliveChance);
+        newRow.push(newCell);
+      }
+      _grid.push(newRow);
+    }
+  }
+  
+  reRandomize(){
+    if(this.state.running)
+      this.startStop();  
+    var newGrid = [];
+    this.randomizeGrid(newGrid, 2);
+    this.setNewBoard(newGrid);
+  }
+  clearGrid() {
+    if(this.state.running)
+      this.startStop();  
+    var newGrid = [];
+    this.randomizeGrid(newGrid, 0);
+    this.setNewBoard(newGrid);
+  }
+  setNewBoard(_grid, _clearGeneration=true){
+    this.setState ({
+      grid: JSON.parse(JSON.stringify(_grid))
+    });
+    nextGrid = JSON.parse(JSON.stringify(_grid));
+    if(_clearGeneration) {
+      this.setState ({ generation: 0 });
+    }
+  }
+  startStop(){
+    if(this.state.running) {
+      clearInterval(interval);    
+      this.setState({
+        running: false
+      });
+    }
+    else {
+      interval = setInterval(this.runGame.bind(this), this.state.speed);    
+      this.setState({
+        running: true
+      });
+    }
+  }
+  setSpeed(newSpeed){
+    var wasRunning = 0;
+    if(this.state.running) {
+      wasRunning = 1;
+      this.startStop();  
+    }
+    this.setState({
+      speed: newSpeed
+    });
+    if(wasRunning) {
+      interval = setInterval(this.runGame.bind(this), newSpeed);    
+      this.setState({ running: true });
+    }
+  }
+  cellClicked(index) { 
+    var wasRunning = 0;
+    if(this.state.running) {
+      wasRunning = 1;
+      this.startStop();  
+    }
+    
+    // convert index to row/col number:
+    var row = Math.floor((index/this.state.numRows));
+    var col = index % this.state.numCols;
+    
+    // if cell is dead, switch to alive:
+    var currGrid = JSON.parse(JSON.stringify(this.state.grid));
+    if(!currGrid[row][col]) {
+      currGrid[row][col] = true;
+      this.setNewBoard(currGrid, false);
+    }
+    
+    if(wasRunning) {
+      interval = setInterval(this.runGame.bind(this), this.state.speed);  
+      this.setState({ running: true });
+    }
+  }
+  toggleHelp(){
+    this.setState ({ showHelp: (!this.state.showHelp) });
+  }
+  
+  runGame() {
+    for(var row = 0; row < this.state.numRows; row++) {
+      for(var col = 0; col < this.state.numCols; col++) {
+        var upRow, botRow, leftCol, rightCol; // neighbor indexes
+        if(row == 0) {
+          upRow = this.state.numRows - 1;
+          botRow = row + 1;
+        }
+        else if(row == (this.state.numRows - 1)){
+          upRow = row - 1;
+          botRow = 0;
+        }
+        else {
+          upRow = row - 1;
+          botRow = row + 1;
+        }
+        
+        if(col == 0) {
+          leftCol = this.state.numCols - 1;
+          rightCol = col + 1;
+        }
+        else if(col == (this.state.numCols-1)) {
+          leftCol = col - 1;
+          rightCol = 0;
+        }
+        else {
+          leftCol = col - 1;
+          rightCol = col + 1;
+        }
+        //console.log("row="+row+" col="+col+". upRow="+upRow+" botRow="+botRow+" rightCol="+rightCol+" leftCol="+leftCol);
+        // sum alive neighbors:
+        var sum = this.state.grid[upRow][col] + 
+                  this.state.grid[upRow][rightCol] +
+                  this.state.grid[row][rightCol] +
+                  this.state.grid[botRow][rightCol] +
+                  this.state.grid[botRow][col] +
+                  this.state.grid[botRow][leftCol] +
+                  this.state.grid[row][leftCol] +
+                  this.state.grid[upRow][leftCol];
+        
+        if(this.state.grid[row][col]) {
+          var nextAlive = true;
+          if(sum < 2)
+            nextAlive = false;
+          else if(sum > 3)
+            nextAlive = false;
+          nextGrid[row][col] = nextAlive;
+        }  
+        else {
+          var nextAlive = false;
+          if(sum == 3)
+            nextAlive = true;
+          nextGrid[row][col] = nextAlive;
+        }
+        //console.log("nextGrid "+row+","+col+"="+nextGrid[row][col]+" sum was "+sum);
+      }
+    }
+    this.setState({
+      grid: JSON.parse(JSON.stringify(nextGrid)),
+      generation: (this.state.generation+1)      
+    }); 
+  }
+  
+  render() {
+    var gridArr = this.state.grid.reduce(function(prev, curr) {
+      return prev.concat(curr);
+    });
+    var playButton;
+    if(this.state.running)
+      playButton = <Button onClick={this.startStop.bind(this)} bsStyle="primary"><i className="fa fa-pause"></i></Button>
+    else 
+      playButton = <Button onClick={this.startStop.bind(this)} bsStyle="primary"><i className="fa fa-play"></i></Button>
+        
+    return(
+      <div className="text-center">
+        <h2>Game of Life with React</h2>
+        <h3>Generation: {this.state.generation}</h3>
+        <div className="board">
+          {gridArr.map(function(cell, ii) {
+            return(<div onClick={() => this.cellClicked(ii)}><Cell isAlive={cell}/></div>);
+          }.bind(this))}
+          
+          {this.state.showHelp ? (
+            <div className="help-div">
+              <div className="help-contents text-center">
+                <h4 className="help-text" dangerouslySetInnerHTML={{__html: helpText}}></h4>
+                <Button onClick={this.toggleHelp.bind(this)} bsStyle="primary">OK</Button>
+              </div>
+              <div className="help-overlay"></div>
+            </div>) : (<div></div>)}
+        </div>
+        <div className="controls">
+          <div>
+            {playButton}
+            <Button onClick={this.reRandomize.bind(this)} bsStyle="primary"><i className="fa fa-repeat"></i></Button>
+            <Button onClick={this.clearGrid.bind(this)} bsStyle="primary"><i className="fa fa-trash"></i></Button>
+            <Button onClick={this.toggleHelp.bind(this)} bsStyle="primary"><i className="fa fa-question-circle"></i></Button>
+          </div>
+          <div>
+            <Button onClick={() => this.setSpeed(1000)} bsStyle="info">Slow</Button>
+            <Button onClick={() => this.setSpeed(400)} bsStyle="info">Med</Button>
+            <Button onClick={() => this.setSpeed(150)} bsStyle="info">Fast</Button>
+          </div>
+        </div>
+      </div>  
+    );
+  }
+}
+
+ReactDOM.render(<Board/>, document.getElementById("container"));
